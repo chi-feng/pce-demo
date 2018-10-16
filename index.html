@@ -10,7 +10,7 @@
 
     <!-- Bootstrap core CSS -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
-    <script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
 
@@ -62,20 +62,20 @@
     <!-- Begin page content -->
     <main role="main" class="container">
       
-            <h2 class="mt-5">Polynomial Chaos Expansion</h2>
+      <h2 class="mt-5">Polynomial Chaos Expansion</h2>
         <div class="row">
           <div class="col-sm">
             <div id="inputs">
               <form id="form">
                 <div class="form-group">
-                  <label class="form-label">$f(\boldsymbol{\xi})$: function to approximate (in terms of <code>x[0]</code> and <code>x[1]</code>)</label>
-                  <textarea class="form-control" name="formula" disabled>2*Math.exp(0.2*Math.sin(x[0]))+2*x[0]*x[1]-2*x[1]*x[1]</textarea>
+                  <label class="form-label">$f(\boldsymbol{\xi})$: function we want to approximate (in terms of <code>x[0]</code> and <code>x[1]</code>)</label>
+                  <textarea class="form-control" name="function">2*Math.exp(0.2*Math.sin(x[0]))+2*x[0]*x[1]-2*x[1]*x[1]</textarea>
                 </div>
                 <div class="row">
                   <div class="col-sm">
                 <div class="form-group">
                   <label class="form-label">$\xi_1$ distribution</label>
-                  <select class="form-control" name="germ1"  disabled>
+                  <select class="form-control" name="germ1">
                     <option value="NORMAL">Normal(0, 1)</option>
                     <option value="UNIFORM">Uniform(-1, 1)</option>
                   </select>
@@ -84,9 +84,9 @@
               <div class="col-sm">
                 <div class="form-group">
                   <label class="form-label">$\xi_2$ distribution</label>
-                  <select class="form-control" name="germ2"  disabled>
+                  <select class="form-control" name="germ2" >
                     <option value="NORMAL">Normal(0, 1)</option>
-                    <option value="UNIFORM">Uniform(-1, 1)</option>
+                    <option value="UNIFORM" selected>Uniform(-1, 1)</option>
                   </select>
                 </div>
               </div>
@@ -95,15 +95,16 @@
                   <label class="form-label">Maximum polynomial orders</label>
                   <div class="row">
                     <div class="col-sm">
-                      <input type="text" class="form-control" name="polyOrder1" value="3"  disabled>
+                      <input type="text" class="form-control" name="polyOrder1" value="3" >
                     </div>
                     <div class="col-sm">
-                      <input type="text" class="form-control" name="polyOrder2" value="3"  disabled>
+                      <input type="text" class="form-control" name="polyOrder2" value="3" >
                     </div>
                   </div>
                 </div>
                 <div class="form-group">
-                  <button class="btn btn-primary"  disabled>Run PCE</button>
+                  <input type="submit" class="btn btn-primary" value="Run PCE">
+                  <span class="small" id="running_indicator"></span>
                 </div>
               </form>
             </div>
@@ -125,121 +126,167 @@
       </div>
       <table id="table"></table>
       <script>
+        $("#form").submit(function(event) {
+          event.preventDefault();
+          $(".modal:visible").find(".close").trigger('click');
+          $('#form').find('input[type="submit"]').attr('value','Running...');
+          // $('#running_indicator').html('Running...');
+          $('#form').find('input[type="submit"]').attr('disabled','true');
+            
+          setTimeout(function(){ run(); }, 500);
+          
+          
+          //$.post($("#form").attr('action'), form.serialize(), function(response) {
+          //  console.log(response);
+          //  table.api().ajax.reload();
+          //});
+        });
 
-      let f = function(x) {
-        // let a = 1, b = 100;
-        // return Math.pow(a-x[0],2) + b * Math.pow(x[1]-x[0]*x[0], 2);
-        return 2*Math.exp(0.2*Math.sin(x[0]))+2*x[0]*x[1]-2*x[1]*x[1];
+        function nicePrecision(x) {
+          if (Math.abs(x) < 1e-11) return '0';
+          if (Math.abs(x - Math.round(x)) < 1e-11) return Math.round(x);
+          return x.toFixed(3);
+        }
+
+
+        // get symmetric limits of a function so that the colormaps are centered at zero
+        function getSymmetricLimits(z, n) {
+          const min = (a, b) => Math.min(a, b);
+          const max = (a, b) => Math.max(a, b);
+          var zmin = z.map(row=>row.reduce(min)).reduce(min);
+          var zmax = z.map(row=>row.reduce(max)).reduce(max);
+          var zlim = [-Math.max(Math.abs(zmin), Math.abs(zmax)), Math.max(Math.abs(zmin), Math.abs(zmax))];
+          var zstep = (zlim[1] - zlim[0]) / n;
+          return {min: zlim[0], max: zlim[1], step: zstep};
+        }
+
+      function run() {
+
+        var fstring = $('#form').find('textarea[name="function"]').val();
+        console.log('function: ' + fstring);
+
+        var f = function(x) {
+          // var a = 1, b = 100;
+          // return Math.pow(a-x[0],2) + b * Math.pow(x[1]-x[0]*x[0], 2);
+          // return 2*Math.exp(0.2*Math.sin(x[0]))+2*x[0]*x[1]-2*x[1]*x[1];
+          return eval(fstring);
+        };
+
+        var germs = [germType.NORMAL, germType.NORMAL];
+
+        if ($('#form').find('select[name="germ1"]').val() == 'UNIFORM')
+          germs[0] = germType.UNIFORM;
+        if ($('#form').find('select[name="germ2"]').val() == 'UNIFORM')
+          germs[1] = germType.UNIFORM;
+
+
+        var polyOrders = [
+          parseInt($('#form').find('input[name="polyOrder1"]').val()),
+          parseInt($('#form').find('input[name="polyOrder2"]').val())
+        ];
+
+        var totalOrder = polyOrders.reduce((a, b) => Math.max(a,b));
+
+        var p = new PCExpansion(f, germs, polyOrders, totalOrder);
+
+        var moments = p.getMoments();
+
+        document.getElementById('multiindex').innerHTML = '$$\\begin{align}\\mathcal{J}&=\\{\\mathbf{j}:\\|\\mathbf{j}\\|_1\\leq' + p.totalOrder + ',\\text{ and }' + p.getOrdersLatex() + '\\}\\\\&=\\{' + p.multiindexSet.map(multiindex=>'(' + multiindex.join(',') + ')').join(',') + '\\}\\end{align}$$';
+        document.getElementById('mean').innerHTML = '$$\\mathbb{E}[f(\\boldsymbol{\\xi})] \\approx \\gamma_{(0,0)} = ' + nicePrecision(moments.mean) + '$$';
+        document.getElementById('variance').innerHTML = '$$\\text{Var}[f(\\boldsymbol{\\xi})] \\approx \\sum_{\\mathbf{j}\\in\\mathcal{J}}\\gamma_{\\mathbf{j}}^2\\langle\\psi_{\\mathbf{j}}^2\\rangle = ' + nicePrecision(moments.variance) + '$$';
+        document.getElementById('germs').innerHTML = '$$' + p.getGermsLatex() + '$$';
+
+        // create table of expansion terms
+        document.getElementById('table').innerHTML = '';
+        var row = document.createElement('tr');
+        p.multiindexSet.forEach(function (multiindex, k) {
+          // every time outer index changes, create a new table row
+          if (k > 0 && multiindex[0] != p.multiindexSet[k-1][0]) {
+            table.appendChild(row); 
+            row = document.createElement('tr');
+          }
+          var cell = document.createElement('td');
+          cell.setAttribute("id", 'cell-' + multiindex[0] + '-' + multiindex[1]);
+          html = [
+            //'<div class="multiindex">$\\mathbf{j}=(' + multiindex[0] + ',' + multiindex[1] + ')$</div>',
+            '<div class="coeff">$\\gamma_{(' + multiindex[0] + ',' + multiindex[1] + ')}=' + nicePrecision(p.coeffs[k]) + '$</div>',
+            '<div class="poly">$\\psi_{(' + multiindex[0] + ',' + multiindex[1] + ')}(\\boldsymbol{\\xi})=' + p.getTensorPolyLatex(multiindex) +'$</div>',
+            '<div class="contourplot" id="contour-' + multiindex[0] + '-' + multiindex[1] + '"></div>'
+          ];
+          cell.innerHTML = html.join('');
+          row.appendChild(cell);  
+        });
+        table.appendChild(row);
+        document.body.appendChild(table);
+
+        var npts = 51;
+
+        var xmin = germs[0] == germType.NORMAL ? -3 : -1, xmax = germs[0] == germType.NORMAL ? 3 : 1;
+        var ymin = germs[1] == germType.NORMAL ? -3 : -1, ymax = germs[1] == germType.NORMAL ? 3 : 1;
+        var x = Array2d.linspace(xmin,xmax,npts).data;
+        var y = Array2d.linspace(ymin,ymax,npts).data;
+        var z = Array2d.build((i,j) => p.evaluate([x[i], y[j]]), x.length, y.length).toArray();
+        var zlim = getSymmetricLimits(z, 20);
+        var ztrue = Array2d.build((i,j) => p.f([x[i], y[j]]), x.length, y.length).toArray()
+          .map(row => row.map(val => Math.max(Math.min(val, zlim.max), zlim.min))); // clamp to zlimits
+
+        var data = [{ 
+          x: x, y: y, z: z, 
+          type: 'contour', 
+          colorscale:[['0.0', '#f00'],['1.0', '#f00']],
+          autocontour: false,
+          contours: { start: zlim.min, end: zlim.max, size: zlim.step, coloring: 'lines' },
+          hoverinfo:'none',showscale:false,
+        }, {
+          x: x, y: y, z: ztrue, 
+          type: 'contour' ,
+          colorscale:[['0.0', '#00f'],['1.0', '#00f']],
+          autocontour: false,
+          contours: { start: zlim.min, end: zlim.max, size: zlim.step, coloring: 'lines' },
+          hoverinfo:'none',showscale:false,
+        }];
+
+        var layout = { autosize: false, width: 500, height: 400, margin: { l: 40, r: 40, b: 50, t: 10, pad: 0 }};
+
+        Plotly.newPlot('contour', data, layout, {displayModeBar: false});
+
+        var data = [ 
+          {x:x,y:y,z:z,type:'surface', opacity:1,showscale:false,hoverinfo:'none',colorscale: [['0.0', '#f00'],['1.0', '#f00']],cmin:zlim.min, cmax:zlim.max},
+          {x:x,y:y,z:ztrue,type:'surface', opacity:0.5, colorscale: [['0.0', '#00f'],['1.0', '#00f']],showscale:false,hoverinfo:'none',cmin:zlim.min, cmax:zlim.max}
+        ];
+        Plotly.newPlot('surface', data, layout, {displayModeBar: false});
+
+
+        p.multiindexSet.forEach(function (multiindex, k) {
+          var z = Array2d.build((i, j) => p.evalTensorPoly(multiindex, [x[i], y[j]]), x.length, y.length).toArray();
+          var zlim = getSymmetricLimits(z, 10);
+          var n = p.tensorQuads[k].abscissae.length;
+          var abscissae = Array2d.build((i, j) => p.tensorQuads[k].abscissae[j][i], 2, n).toArray();
+          var weights = Array2d.build((i, j) => Math.sqrt(p.tensorQuads[k].weights[j].reduce(reductions.product)) * 20, 1, n).data;
+          // var zcoord = Array2d.build((i, j) => p.f(p.tensorQuads[k].abscissae[j]) * p.evalTensorPoly(multiindex, p.tensorQuads[k].abscissae[j]), 1, n).data;
+          var zcoord = Array2d.build((i, j) => zlim.min, 1, n).data;
+          var data = [
+            { x: abscissae[0], y: abscissae[1], z: zcoord, type: 'scatter3d', mode: 'markers', 
+              marker: { size: weights, color: '#000', line: { color: '#000' } }, opacity:0.9, hoverinfo:'none'},
+            { x:x, y:y, z:z, type:'surface', opacity:0.9, showscale:false, cmin:zlim.min, cmax:zlim.max, hoverinfo:'none' },
+          ]
+          console.log(data);
+          var layout = { autosize: false, width: 300, height: 200, margin: { l: 10, r: 10, b: 10, t: 10, pad: 0 } }
+          Plotly.newPlot('contour-' + multiindex[0] + '-' + multiindex[1], data, layout, {displayModeBar: false});
+          if (Math.abs(p.coeffs[k]) < 1e-11) {
+            document.getElementById('contour-' + multiindex[0] + '-' + multiindex[1]).style.opacity = 0.25;
+          }
+        });
+
+
+        // $('#running_indicator').html('');
+        $('#form').find('input[type="submit"]').attr('value', 'Run PCE');
+        $('#form').find('input[type="submit"]').removeAttr('disabled');
+
+        MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
+
       };
 
-      let germs = [germType.NORMAL, germType.UNIFORM];
-      let polyOrders = [3,3];
-      let totalOrder = polyOrders.reduce((a, b) => Math.max(a,b));
-      let p = new PCExpansion(f, germs, polyOrders, totalOrder);
-      let moments = p.getMoments();
-      document.getElementById('multiindex').innerHTML = '$$\\begin{align}\\mathcal{J}&=\\{\\mathbf{j}:\\|\\mathbf{j}\\|_1\\leq' + p.totalOrder + ',\\text{ and }' + p.getOrdersLatex() + '\\}\\\\&=\\{' + p.multiindexSet.map(multiindex=>'(' + multiindex.join(',') + ')').join(',') + '\\}\\end{align}$$';
-      document.getElementById('mean').innerHTML = '$$\\mathbb{E}[f(\\boldsymbol{\\xi})] \\approx \\gamma_{(0,0)} = ' + nicePrecision(moments.mean) + '$$';
-      document.getElementById('variance').innerHTML = '$$\\text{Var}[f(\\boldsymbol{\\xi})] \\approx \\sum_{\\mathbf{j}\\in\\mathcal{J}}\\gamma_{\\mathbf{j}}^2\\langle\\psi_{\\mathbf{j}}^2\\rangle = ' + nicePrecision(moments.variance) + '$$';
-      document.getElementById('germs').innerHTML = '$$' + p.getGermsLatex() + '$$';
-
-      function nicePrecision(x) {
-        if (Math.abs(x) < 1e-11) return '0';
-        if (Math.abs(x - Math.round(x)) < 1e-11) return Math.round(x);
-        return x.toFixed(3);
-      }
-
-      // create table of expansion terms
-      document.getElementById('table').innerHTML = '';
-      let row = document.createElement('tr');
-      p.multiindexSet.forEach(function (multiindex, k) {
-        // every time outer index changes, create a new table row
-        if (k > 0 && multiindex[0] != p.multiindexSet[k-1][0]) {
-          table.appendChild(row); 
-          row = document.createElement('tr');
-        }
-        let cell = document.createElement('td');
-        cell.setAttribute("id", 'cell-' + multiindex[0] + '-' + multiindex[1]);
-        html = [
-          //'<div class="multiindex">$\\mathbf{j}=(' + multiindex[0] + ',' + multiindex[1] + ')$</div>',
-          '<div class="coeff">$\\gamma_{(' + multiindex[0] + ',' + multiindex[1] + ')}=' + nicePrecision(p.coeffs[k]) + '$</div>',
-          '<div class="poly">$\\psi_{(' + multiindex[0] + ',' + multiindex[1] + ')}(\\boldsymbol{\\xi})=' + p.getTensorPolyLatex(multiindex) +'$</div>',
-          '<div class="contourplot" id="contour-' + multiindex[0] + '-' + multiindex[1] + '"></div>'
-        ];
-        cell.innerHTML = html.join('');
-        row.appendChild(cell);  
-      });
-      table.appendChild(row);
-      document.body.appendChild(table);
-
-      var npts = 51;
-
-      let xmin = germs[0] == germType.NORMAL ? -3 : -1, xmax = germs[0] == germType.NORMAL ? 3 : 1;
-      let ymin = germs[1] == germType.NORMAL ? -3 : -1, ymax = germs[1] == germType.NORMAL ? 3 : 1;
-      let x = Array2d.linspace(xmin,xmax,npts).data;
-      let y = Array2d.linspace(ymin,ymax,npts).data;
-      let z = Array2d.build((i,j) => p.evaluate([x[i], y[j]]), x.length, y.length).toArray();
-      let zlim = getSymmetricLimits(z, 20);
-      let ztrue = Array2d.build((i,j) => p.f([x[i], y[j]]), x.length, y.length).toArray()
-        .map(row => row.map(val => Math.max(Math.min(val, zlim.max), zlim.min))); // clamp to zlimits
-
-      // get symmetric limits of a function so that the colormaps are centered at zero
-      function getSymmetricLimits(z, n) {
-        const min = (a, b) => Math.min(a, b);
-        const max = (a, b) => Math.max(a, b);
-        let zmin = z.map(row=>row.reduce(min)).reduce(min);
-        let zmax = z.map(row=>row.reduce(max)).reduce(max);
-        let zlim = [-Math.max(Math.abs(zmin), Math.abs(zmax)), Math.max(Math.abs(zmin), Math.abs(zmax))];
-        let zstep = (zlim[1] - zlim[0]) / n;
-        return {min: zlim[0], max: zlim[1], step: zstep};
-      }
-
-      var data = [{ 
-        x: x, y: y, z: z, 
-        type: 'contour', 
-        colorscale:[['0.0', '#f00'],['1.0', '#f00']],
-        autocontour: false,
-        contours: { start: zlim.min, end: zlim.max, size: zlim.step, coloring: 'lines' },
-        hoverinfo:'none',showscale:false,
-      }, {
-        x: x, y: y, z: ztrue, 
-        type: 'contour' ,
-        colorscale:[['0.0', '#00f'],['1.0', '#00f']],
-        autocontour: false,
-        contours: { start: zlim.min, end: zlim.max, size: zlim.step, coloring: 'lines' },
-        hoverinfo:'none',showscale:false,
-      }];
-
-      let layout = { autosize: false, width: 500, height: 400, margin: { l: 40, r: 40, b: 50, t: 10, pad: 0 }};
-
-      Plotly.newPlot('contour', data, layout, {displayModeBar: false});
-
-      var data = [ 
-        {x:x,y:y,z:z,type:'surface', opacity:1,showscale:false,hoverinfo:'none',colorscale: [['0.0', '#f00'],['1.0', '#f00']],cmin:zlim.min, cmax:zlim.max},
-        {x:x,y:y,z:ztrue,type:'surface', opacity:0.5, colorscale: [['0.0', '#00f'],['1.0', '#00f']],showscale:false,hoverinfo:'none',cmin:zlim.min, cmax:zlim.max}
-      ];
-      Plotly.newPlot('surface', data, layout, {displayModeBar: false});
-
-
-      p.multiindexSet.forEach(function (multiindex, k) {
-        let z = Array2d.build((i, j) => p.evalTensorPoly(multiindex, [x[i], y[j]]), x.length, y.length).toArray();
-        let zlim = getSymmetricLimits(z, 10);
-        let n = p.tensorQuads[k].abscissae.length;
-        let abscissae = Array2d.build((i, j) => p.tensorQuads[k].abscissae[j][i], 2, n).toArray();
-        let weights = Array2d.build((i, j) => Math.sqrt(p.tensorQuads[k].weights[j].reduce(reductions.product)) * 20, 1, n).data;
-        // let zcoord = Array2d.build((i, j) => p.f(p.tensorQuads[k].abscissae[j]) * p.evalTensorPoly(multiindex, p.tensorQuads[k].abscissae[j]), 1, n).data;
-        let zcoord = Array2d.build((i, j) => zlim.min, 1, n).data;
-        var data = [
-          { x: abscissae[0], y: abscissae[1], z: zcoord, type: 'scatter3d', mode: 'markers', 
-            marker: { size: weights, color: '#000', line: { color: '#000' } }, opacity:0.9, hoverinfo:'none'},
-          { x:x, y:y, z:z, type:'surface', opacity:0.9, showscale:false, cmin:zlim.min, cmax:zlim.max, hoverinfo:'none' },
-        ]
-        console.log(data);
-        let layout = { autosize: false, width: 300, height: 200, margin: { l: 10, r: 10, b: 10, t: 10, pad: 0 } }
-        Plotly.newPlot('contour-' + multiindex[0] + '-' + multiindex[1], data, layout, {displayModeBar: false});
-        if (Math.abs(p.coeffs[k]) < 1e-11) {
-          document.getElementById('contour-' + multiindex[0] + '-' + multiindex[1]).style.opacity = 0.25;
-        }
-      });
 
       </script>
 
@@ -255,16 +302,3 @@
     </footer>
   </body>
 </html>
-
-
-
-
-<head>
-
-</head>
-<body>
-<script src="lib/linalg.js"></script>
-<script src="pce.js"></script>
-
-
-</body>
