@@ -46,9 +46,10 @@
       -------------------------------------------------- */
       /* Not required for template or sticky footer method. */
 
-      table { border-collapse: collapse; }
-      table, th, td { border: 0; } 
-      table td { padding: 5px; }
+      body { background: #fafafa; }
+      table { border-collapse: collapse;}
+      table, th, td { border: 10px solid #fafafa; border-radius: 10px;} 
+      table td { padding: 5px; background: #fff; }
       div.multiindex, div.coeff, div.poly { text-align:center; }
     </style>
 
@@ -121,8 +122,16 @@
           </div>
         </div>
       <div>
-        <div id="surface" style="display:inline-block"></div>
-        <div id="contour" style="display:inline-block"></div>
+        <div class="row">
+          <div class="col-sm text-center">
+            <!-- <p>Surface plot</p> -->
+            <div id="surface" style="display:inline-block"></div>
+          </div>
+          <div class="col-sm text-center">
+            <!-- <p>Contour plot</p> -->
+            <div id="contour" style="display:inline-block"></div>
+          </div>
+        </div>
       </div>
       <table id="table"></table>
       <script>
@@ -246,7 +255,7 @@
           hoverinfo:'none',showscale:false,
         }];
 
-        var layout = { autosize: false, width: 500, height: 400, margin: { l: 40, r: 40, b: 50, t: 10, pad: 0 }};
+        var layout = { autosize: true, width: 500, height: 400, margin: { l: 40, r: 40, b: 50, t: 10, pad: 0 }};
 
         Plotly.newPlot('contour', data, layout, {displayModeBar: false});
 
