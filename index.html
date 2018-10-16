@@ -46,12 +46,6 @@
       -------------------------------------------------- */
       /* Not required for template or sticky footer method. */
 
-      .container {
-        width: auto;
-        max-width: 680px;
-        padding: 0 15px;
-      }
-
       table { border-collapse: collapse; }
       table, th, td { border: 0; } 
       table td { padding: 5px; }
@@ -66,17 +60,65 @@
     <script src="pce.js"></script>
 
     <!-- Begin page content -->
-    <main role="main" class="container-fluid">
-      <h2 class="mt-5">Polynomial Chaos Expansion</h2>
-
-      <div id="modal"></div>
-      <div id="main-formula">$$\color{blue}{f(\boldsymbol{\xi})}\approx \color{red}{\sum_{\mathbf{j}\in\mathcal{J}}\gamma_{\mathbf{j}} \psi_{\mathbf{j}}(\boldsymbol{\xi})}$$</div>
-      <div id="germs"></div>
-      <div id="multiindex"></div>
-      <div id="moments">
-        <div id="mean"></div>
-        <div id="variance"></div>
-      </div>
+    <main role="main" class="container">
+      
+            <h2 class="mt-5">Polynomial Chaos Expansion</h2>
+        <div class="row">
+          <div class="col-sm">
+            <div id="inputs">
+              <form id="form">
+                <div class="form-group">
+                  <label class="form-label">$f(\boldsymbol{\xi})$: function to approximate (in terms of <code>x[0]</code> and <code>x[1]</code>)</label>
+                  <textarea class="form-control" name="formula" disabled>2*Math.exp(0.2*Math.sin(x[0]))+2*x[0]*x[1]-2*x[1]*x[1]</textarea>
+                </div>
+                <div class="row">
+                  <div class="col-sm">
+                <div class="form-group">
+                  <label class="form-label">$\xi_1$ distribution</label>
+                  <select class="form-control" name="germ1"  disabled>
+                    <option value="NORMAL">Normal(0, 1)</option>
+                    <option value="UNIFORM">Uniform(-1, 1)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-sm">
+                <div class="form-group">
+                  <label class="form-label">$\xi_2$ distribution</label>
+                  <select class="form-control" name="germ2"  disabled>
+                    <option value="NORMAL">Normal(0, 1)</option>
+                    <option value="UNIFORM">Uniform(-1, 1)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+                <div class="form-group">
+                  <label class="form-label">Maximum polynomial orders</label>
+                  <div class="row">
+                    <div class="col-sm">
+                      <input type="text" class="form-control" name="polyOrder1" value="3"  disabled>
+                    </div>
+                    <div class="col-sm">
+                      <input type="text" class="form-control" name="polyOrder2" value="3"  disabled>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <button class="btn btn-primary"  disabled>Run PCE</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="col-sm">
+            <div id="modal"></div>
+            <div id="main-formula">$$\color{blue}{f(\boldsymbol{\xi})}\approx \color{red}{\sum_{\mathbf{j}\in\mathcal{J}}\gamma_{\mathbf{j}} \psi_{\mathbf{j}}(\boldsymbol{\xi})}$$</div>
+            <div id="germs"></div>
+            <div id="multiindex"></div>
+            <div id="moments">
+              <div id="mean"></div>
+              <div id="variance"></div>
+            </div>
+          </div>
+        </div>
       <div>
         <div id="surface" style="display:inline-block"></div>
         <div id="contour" style="display:inline-block"></div>
@@ -87,7 +129,7 @@
       let f = function(x) {
         // let a = 1, b = 100;
         // return Math.pow(a-x[0],2) + b * Math.pow(x[1]-x[0]*x[0], 2);
-        return 2 * Math.exp(0.3*x[0] + 0.2*Math.sin(3*x[0])) + 2*x[0]*x[1] - 2 * x[1] * x[1];
+        return 2*Math.exp(0.2*Math.sin(x[0]))+2*x[0]*x[1]-2*x[1]*x[1];
       };
 
       let germs = [germType.NORMAL, germType.UNIFORM];
