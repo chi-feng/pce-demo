@@ -41,14 +41,16 @@
         background-color: #f5f5f5;
       }
 
-
       /* Custom page CSS
       -------------------------------------------------- */
       /* Not required for template or sticky footer method. */
 
       body { background: #fafafa; }
       table { border-collapse: collapse;}
-      table, th, td { border: 10px solid #fafafa; border-radius: 10px;} 
+      #table, #table th, #table td { border: 10px solid #fafafa;} 
+      #table td { cursor:pointer; }
+      #table td:hover { background-color: #fffaee; }
+      table.quadrature, table.quadrature th, table.quadrature td { border: 1px solid #666; } 
       table td { padding: 5px; background: #fff; }
       div.multiindex, div.coeff, div.poly { text-align:center; }
     </style>
@@ -59,6 +61,25 @@
 
     <script src="lib/linalg.js"></script>
     <script src="pce.js"></script>
+
+<div id="modal" class="modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-title"></h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
     <!-- Begin page content -->
     <main role="main" class="container">
@@ -169,6 +190,95 @@
           return {min: zlim[0], max: zlim[1], step: zstep};
         }
 
+
+  function getTensorPolyLatex(germs, multiindex) {
+    return germs.map(function (type, i) {
+      switch (type) {
+        case germType.NORMAL: return 'H_{' + multiindex[i] + '}(\\xi_{' + (i+1) + '})';
+        case germType.UNIFORM: return 'P_{' + multiindex[i] + '}(\\xi_{' + (i+1) + '})';
+      }
+    }).join('');
+  }
+
+  function getGermsLatex(germs) {
+    return germs.map(function (type, i) {
+      switch (type) {
+        case germType.NORMAL: return '\\xi_{' + (i+1) + '}\\sim\\mathcal{N}(0,1)';
+        case germType.UNIFORM: return '\\xi_{' + (i+1) + '}\\sim\\mathcal{U}(-1,1)';
+      }
+    }).join(';\\\\');
+  }
+
+
+  function getOrdersLatex(orders) {
+    return orders.map((order, i) => '0\\leq j_{' + (i+1) + '}\\leq ' + order).join('\\text{ and }'); 
+  }
+
+  function getQuad1DLatex(p, multiindex, k) {
+    var latex = [];
+    var p0 = p.quadOrder(multiindex[0]);
+    var p1 = p.quadOrder(multiindex[1]);
+    var abscissae, weights;
+    var quad;
+    switch (p.germs[0]) {
+      case germType.NORMAL:  quad = GaussianQuadrature.hermite; break;
+      case germType.UNIFORM:  quad = GaussianQuadrature.legendre; break;
+    }
+    var abscissae = quad[p0].abscissae.map(nicePrecision);
+    var weights = quad[p0].weights.map(nicePrecision);
+    var row0 = '<tr><td></td>';
+    var row1 = '<tr><td>$x^{(i)}$</td>';
+    var row2 = '<tr><td>$w^{(i)}$</td>';
+    for (var i = 0; i < abscissae.length; i++) {
+      row0 += '<td>$i=' + (i+1) + '$</td>';
+      row1 += '<td>' + abscissae[i] + '</td>';
+      row2 += '<td>' + weights[i] + '</td>';
+    }
+    var table0 = '<table class="quadrature">' + row0 + '</tr>' + row1 + '</tr>' + row2 + '</tr></table>';
+
+
+    switch (p.germs[1]) {
+      case germType.NORMAL:  quad = GaussianQuadrature.hermite; break;
+      case germType.UNIFORM:  quad = GaussianQuadrature.legendre; break;
+    }
+    abscissae = quad[p1].abscissae.map(nicePrecision);
+    weights = quad[p1].weights.map(nicePrecision);
+    row0 = '<tr><td></td>';
+    row1 = '<tr><td>$x^{(i)}$</td>';
+    row2 = '<tr><td>$w^{(i)}$</td>';
+    for (i = 0; i < abscissae.length; i++) {
+      row0 += '<td>$i=' + (i+1) + '$</td>';
+      row1 += '<td>' + abscissae[i] + '</td>';
+      row2 += '<td>' + weights[i] + '</td>';
+    }
+    var table1 = '<table class="quadrature">' + row0 + '</tr>' + row1 + '</tr>' + row2 + '</tr></table>';
+
+    var prod = '$$Q_{' + multiindex[0] + ',' + multiindex[1] + '}^{(1,2)}[h]=(Q_{' + multiindex[0] + '}^{(1)}\\otimes Q_{' + multiindex[1] + '}^{(2)})[h]=\\sum_{i_1=1}^{'+ (p0+1) +'}\\sum_{i_2=1}^{'+ (p1+1) +'} h(x_1^{(i_1)},x_2^{(i_2)}) w^{(i_1)}w^{(i_2)}$$';
+
+    var table2 = '<table class="quadrature">';
+    table2 += '<tr><td>$(i_1,i_2)$</td><td>$(x_1^{(i_1)},x_2^{(i_2)})$</td><td>$w^{(i_1)}w^{(i_2)}$</td></tr>';
+    var indices = cartprod.apply(null, [range(quad[p0].abscissae.length), range(quad[p1].abscissae.length)]);
+    console.log(indices);
+    for (i=1; i < p.tensorQuads[k].abscissae.length; i++) {
+      table2 += '<tr><td>(' + (indices[i][0]+1) + ', ' + (indices[i][1]+1) + ')</td>';
+      table2 += '<td>(' + p.tensorQuads[k].abscissae[i].map(nicePrecision).join(', ') + ')</td>';
+      table2 += '<td>' + nicePrecision(p.tensorQuads[k].weights[i].reduce(product)) + '</td></tr>';
+    }
+    table2 += '</table>'
+    
+
+    return '<p>1D quadrature rule for first dimension with polynomial order $j_1=' + multiindex[0] + '$ $$\\int f(x)\\,\\rho(x)\\,\\text{d}x\\approx Q_{' + multiindex[0] + '}^{(1)}[h]=\\sum_{i=1}^{q(' + multiindex[0] + ')=' + (p0+1) +'}h(x^{(i)})\\,w^{(i)}$$ ' + table0 + '</p><p>1D quadrature rule for second dimension with polynomial order $j_2=' + multiindex[1] + '$' +
+    '$$\\int f(x)\\,\\rho(x)\\,\\text{d}x\\approx Q_{' + multiindex[1] + '}^{(2)}[h]=\\sum_{i=1}^{q(' + multiindex[1] + ')=' + (p1+1) +'}h(x^{(i)})\\,w^{(i)}$$ ' + table1 + '</p><p>2D quadrature rule: </p> ' + prod + table2 + '</p><p>Finally, $$ \\gamma_{('+multiindex[0] + ',' + multiindex[1]+')} = \\frac{Q_{' + multiindex[0] + ',' + multiindex[1] + '}^{(1,2)}[f\\psi_{('+ multiindex[0] + ',' + multiindex[1]+')}]}{\\langle\\psi_{('+ multiindex[0] + ',' + multiindex[1]+')}^2\\rangle}=' + nicePrecision(p.coeffs[k]) + '$$';
+  }
+
+  function getQuadTensorLatex(germs, multiindex) {
+
+  }
+
+function hide_modal() {
+  $(".modal:visible").find(".close").trigger('click');
+}
+
       function run() {
 
         var fstring = $('#form').find('textarea[name="function"]').val();
@@ -200,10 +310,10 @@
 
         var moments = p.getMoments();
 
-        document.getElementById('multiindex').innerHTML = '$$\\begin{align}\\mathcal{J}&=\\{\\mathbf{j}:\\|\\mathbf{j}\\|_1\\leq' + p.totalOrder + ',\\text{ and }' + p.getOrdersLatex() + '\\}\\\\&=\\{' + p.multiindexSet.map(multiindex=>'(' + multiindex.join(',') + ')').join(',') + '\\}\\end{align}$$';
+        document.getElementById('multiindex').innerHTML = '$$\\begin{align}\\mathcal{J}&=\\{\\mathbf{j}:\\|\\mathbf{j}\\|_1\\leq' + p.totalOrder + ',\\text{ and }' + getOrdersLatex(p.orders) + '\\}\\\\&=\\{' + p.multiindexSet.map(multiindex=>'(' + multiindex.join(',') + ')').join(',') + '\\}\\end{align}$$';
         document.getElementById('mean').innerHTML = '$$\\mathbb{E}[f(\\boldsymbol{\\xi})] \\approx \\gamma_{(0,0)} = ' + nicePrecision(moments.mean) + '$$';
         document.getElementById('variance').innerHTML = '$$\\text{Var}[f(\\boldsymbol{\\xi})] \\approx \\sum_{\\mathbf{j}\\in\\mathcal{J}}\\gamma_{\\mathbf{j}}^2\\langle\\psi_{\\mathbf{j}}^2\\rangle = ' + nicePrecision(moments.variance) + '$$';
-        document.getElementById('germs').innerHTML = '$$' + p.getGermsLatex() + '$$';
+        document.getElementById('germs').innerHTML = '$$' + getGermsLatex(germs) + '$$';
 
         // create table of expansion terms
         document.getElementById('table').innerHTML = '';
@@ -216,14 +326,24 @@
           }
           var cell = document.createElement('td');
           cell.setAttribute("id", 'cell-' + multiindex[0] + '-' + multiindex[1]);
+          var coeff = '$\\gamma_{(' + multiindex[0] + ',' + multiindex[1] + ')}=' + nicePrecision(p.coeffs[k]) + '$';
+          var poly = '$\\psi_{(' + multiindex[0] + ',' + multiindex[1] + ')}(\\boldsymbol{\\xi})=' + getTensorPolyLatex(germs, multiindex) +'$';
           html = [
             //'<div class="multiindex">$\\mathbf{j}=(' + multiindex[0] + ',' + multiindex[1] + ')$</div>',
-            '<div class="coeff">$\\gamma_{(' + multiindex[0] + ',' + multiindex[1] + ')}=' + nicePrecision(p.coeffs[k]) + '$</div>',
-            '<div class="poly">$\\psi_{(' + multiindex[0] + ',' + multiindex[1] + ')}(\\boldsymbol{\\xi})=' + p.getTensorPolyLatex(multiindex) +'$</div>',
+            '<div class="coeff">' + coeff + '</div>',
+            '<div class="poly">' + poly + '</div>',
             '<div class="contourplot" id="contour-' + multiindex[0] + '-' + multiindex[1] + '"></div>'
           ];
           cell.innerHTML = html.join('');
-          row.appendChild(cell);  
+          cell.onclick = function() {
+            var quad1d1 = getQuad1DLatex(p, multiindex, k);
+
+            $('#modal-title').html('How to find $\\gamma_{(' + multiindex[0] + ',' + multiindex[1] + ')}$');
+            $('#modal-body').html(quad1d1);
+            $('#modal').modal();
+            MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
+          };
+          row.appendChild(cell);
         });
         table.appendChild(row);
         document.body.appendChild(table);
@@ -271,7 +391,7 @@
           var zlim = getSymmetricLimits(z, 10);
           var n = p.tensorQuads[k].abscissae.length;
           var abscissae = Array2d.build((i, j) => p.tensorQuads[k].abscissae[j][i], 2, n).toArray();
-          var weights = Array2d.build((i, j) => Math.sqrt(p.tensorQuads[k].weights[j].reduce(reductions.product)) * 20, 1, n).data;
+          var weights = Array2d.build((i, j) => Math.sqrt(p.tensorQuads[k].weights[j].reduce(product)) * 20, 1, n).data;
           // var zcoord = Array2d.build((i, j) => p.f(p.tensorQuads[k].abscissae[j]) * p.evalTensorPoly(multiindex, p.tensorQuads[k].abscissae[j]), 1, n).data;
           var zcoord = Array2d.build((i, j) => zlim.min, 1, n).data;
           var data = [
