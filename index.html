@@ -87,11 +87,20 @@
       <h2 class="mt-5">Polynomial Chaos Expansion</h2>
         <div class="row">
           <div class="col-sm">
+            <div id="modal"></div>
+            <div id="main-formula">A <strong>polynomial chaos expansion</strong> is a series expansion of a random variable $X=f(\boldsymbol \xi)$ in the following form: $$\color{blue}{f(\boldsymbol{\xi})}\approx \color{red}{\sum_{\mathbf{j}\in\mathcal{J}}\gamma_{\mathbf{j}} \psi_{\mathbf{j}}(\xi_1,\xi_2,\dots,\xi_n)}.$$
+            In this expansion, $\mathbf{j}=(j_1,\dots,j_n)^T\in\mathbb{N}^n$ is a <strong>multiindex</strong> and $\gamma_{\mathbf{j}}$ are scalar coefficients. $\{\xi_i\}_{i=1}^n$ are independent random variables defined on the probability space $(\Omega,\mathcal{F}(\boldsymbol{\xi}),\mathbb{P})$ and $\boldsymbol{\xi}=(\xi_1,\dots,\xi_n)^T$. $\psi_{\mathbf{j}}(\xi_1,\dots,\xi_n)$ is a $n$-variate orthogonal polynomial with the highest degree term being $\xi_1^{j_1}\xi_2^{j_2}\cdots\xi_n^{j_n}$. The polynomials $\{\psi_\mathbf{j}\}_{\mathbf{j}>\mathbf{0}}$ are orthogonal, i.e.,
+            $$\langle \psi_\boldsymbol{\alpha},\psi_\boldsymbol{\beta}\rangle:=\mathbb{E}[\psi_\boldsymbol{\alpha}\psi_\boldsymbol{\beta}]=\int \psi_\boldsymbol{\alpha}(\boldsymbol\xi)\psi_\boldsymbol{\beta}(\boldsymbol\xi)p_1(\xi_1)\cdots p_n(\xi_n)\,\text{d}\boldsymbol{\xi}=\delta_{\boldsymbol{\alpha}\boldsymbol{\beta}}$$
+            where $p_i(\xi_i)$ is the pdf of $\xi_i$. 
+            </div>
+          </div>
+          <div class="col-sm">
             <div id="inputs">
               <form id="form">
                 <div class="form-group">
-                  <label class="form-label">$f(\boldsymbol{\xi})$: function we want to approximate (in terms of <code>x[0]</code> and <code>x[1]</code>)</label>
+                  <label class="form-label">$X=f(\boldsymbol{\xi})$: random variable we want to approximate</label>
                   <textarea class="form-control" name="function">2*Math.exp(0.2*Math.sin(x[0]))+2*x[0]*x[1]-2*x[1]*x[1]</textarea>
+                  <small class="form-text text-muted">Function must be a javascript expression  in terms of <code>x[0]</code> and <code>x[1]</code>.</small>
                 </div>
                 <div class="row">
                   <div class="col-sm">
@@ -124,16 +133,29 @@
                     </div>
                   </div>
                 </div>
+
                 <div class="form-group">
-                  <input type="submit" class="btn btn-primary" value="Run PCE">
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="plotdim" id="inlineRadio1" value="2">
+                    <label class="form-check-label" for="inlineRadio1">2D plots</label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="plotdim" id="inlineRadio2" value="3" checked>
+                    <label class="form-check-label" for="inlineRadio2">3D plots (requires webGL)</label>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <input type="submit" class="btn btn-primary" value="Compute PCE">
                   <span class="small" id="running_indicator"></span>
                 </div>
               </form>
             </div>
           </div>
+        </div>
+        <br />
+        <div class="row" id="results" style="display:none">
           <div class="col-sm">
-            <div id="modal"></div>
-            <div id="main-formula">$$\color{blue}{f(\boldsymbol{\xi})}\approx \color{red}{\sum_{\mathbf{j}\in\mathcal{J}}\gamma_{\mathbf{j}} \psi_{\mathbf{j}}(\boldsymbol{\xi})}$$</div>
+            <h3>Results</h3>
             <div id="germs"></div>
             <div id="multiindex"></div>
             <div id="moments">
@@ -156,20 +178,32 @@
       </div>
       <table id="table"></table>
       <script>
+
+window.addEventListener("load", function() {
+    // Create canvas element. The canvas is not added to the
+    // document itself, so it is never displayed in the
+    // browser window.
+    var canvas = document.createElement("canvas");
+    // Get WebGLRenderingContext from canvas element.
+    var gl = canvas.getContext("webgl")
+      || canvas.getContext("experimental-webgl");
+    // Report the result.
+    if (gl && gl instanceof WebGLRenderingContext) {
+      console.log("Congratulations! Your browser supports WebGL.");
+    } else {
+      console.log("Failed to get WebGL context. Your browser or device may not support WebGL.");
+      $("#inlineRadio1").prop("checked", true);
+      $("#inlineRadio2").prop("disabled", true);
+    }
+}, false);
+
         $("#form").submit(function(event) {
           event.preventDefault();
           $(".modal:visible").find(".close").trigger('click');
           $('#form').find('input[type="submit"]').attr('value','Running...');
-          // $('#running_indicator').html('Running...');
           $('#form').find('input[type="submit"]').attr('disabled','true');
             
           setTimeout(function(){ run(); }, 500);
-          
-          
-          //$.post($("#form").attr('action'), form.serialize(), function(response) {
-          //  console.log(response);
-          //  table.api().ajax.reload();
-          //});
         });
 
         function nicePrecision(x) {
@@ -298,6 +332,7 @@ function hide_modal() {
         if ($('#form').find('select[name="germ2"]').val() == 'UNIFORM')
           germs[1] = germType.UNIFORM;
 
+        var plotdim = parseInt($('input[name=plotdim]:checked').val());
 
         var polyOrders = [
           parseInt($('#form').find('input[name="polyOrder1"]').val()),
@@ -376,17 +411,20 @@ function hide_modal() {
         }];
 
         var layout = { autosize: true, width: 500, height: 400, margin: { l: 40, r: 40, b: 50, t: 10, pad: 0 }};
-
-        Plotly.newPlot('contour', data, layout, {displayModeBar: false});
-
-        var data = [ 
-          {x:x,y:y,z:z,type:'surface', opacity:1,showscale:false,hoverinfo:'none',colorscale: [['0.0', '#f00'],['1.0', '#f00']],cmin:zlim.min, cmax:zlim.max},
-          {x:x,y:y,z:ztrue,type:'surface', opacity:0.5, colorscale: [['0.0', '#00f'],['1.0', '#00f']],showscale:false,hoverinfo:'none',cmin:zlim.min, cmax:zlim.max}
-        ];
-        Plotly.newPlot('surface', data, layout, {displayModeBar: false});
-
+        if (plotdim == 2) {
+          Plotly.newPlot('contour', data, layout, {displayModeBar: false});
+        }
+        if (plotdim == 3){
+          Plotly.newPlot('contour', data, layout, {displayModeBar: false});
+          var data = [ 
+            {x:x,y:y,z:z,type:'surface', opacity:1,showscale:false,hoverinfo:'none',colorscale: [['0.0', '#f00'],['1.0', '#f00']],cmin:zlim.min, cmax:zlim.max},
+            {x:x,y:y,z:ztrue,type:'surface', opacity:0.5, colorscale: [['0.0', '#00f'],['1.0', '#00f']],showscale:false,hoverinfo:'none',cmin:zlim.min, cmax:zlim.max}
+          ];
+          Plotly.newPlot('surface', data, layout, {displayModeBar: false});
+        }
 
         p.multiindexSet.forEach(function (multiindex, k) {
+          console.log(k);
           var z = Array2d.build((i, j) => p.evalTensorPoly(multiindex, [x[i], y[j]]), x.length, y.length).toArray();
           var zlim = getSymmetricLimits(z, 10);
           var n = p.tensorQuads[k].abscissae.length;
@@ -394,14 +432,24 @@ function hide_modal() {
           var weights = Array2d.build((i, j) => Math.sqrt(p.tensorQuads[k].weights[j].reduce(product)) * 20, 1, n).data;
           // var zcoord = Array2d.build((i, j) => p.f(p.tensorQuads[k].abscissae[j]) * p.evalTensorPoly(multiindex, p.tensorQuads[k].abscissae[j]), 1, n).data;
           var zcoord = Array2d.build((i, j) => zlim.min, 1, n).data;
-          var data = [
-            { x: abscissae[0], y: abscissae[1], z: zcoord, type: 'scatter3d', mode: 'markers', 
-              marker: { size: weights, color: '#000', line: { color: '#000' } }, opacity:0.9, hoverinfo:'none'},
-            { x:x, y:y, z:z, type:'surface', opacity:0.9, showscale:false, cmin:zlim.min, cmax:zlim.max, hoverinfo:'none' },
-          ]
-          console.log(data);
-          var layout = { autosize: false, width: 300, height: 200, margin: { l: 10, r: 10, b: 10, t: 10, pad: 0 } }
-          Plotly.newPlot('contour-' + multiindex[0] + '-' + multiindex[1], data, layout, {displayModeBar: false});
+          
+          if (plotdim == 3) {
+            var data = [
+              { x: abscissae[0], y: abscissae[1], z: zcoord, type: 'scatter3d', mode: 'markers', 
+                marker: { size: weights, color: '#000', line: { color: '#000' } }, opacity:0.9, hoverinfo:'none'},
+              { x:x, y:y, z:z, type:'surface', opacity:0.9, showscale:false, cmin:zlim.min, cmax:zlim.max, hoverinfo:'none' },
+            ]
+            var layout = { autosize: false, width: 300, height: 200, margin: { l: 10, r: 10, b: 10, t: 10, pad: 0 } }
+            Plotly.newPlot('contour-' + multiindex[0] + '-' + multiindex[1], data, layout, {displayModeBar: false});
+          } else if (plotdim == 2) {
+            var data = [
+              { x: abscissae[0], y: abscissae[1], type: 'scatter', mode: 'markers', 
+                marker: { size: weights, color: '#000', line: { color: '#000' } }, opacity:0.9, hoverinfo:'none'},
+              { x:x, y:y, z:z, type:'contour', cmin:zlim.min, cmax:zlim.max, hoverinfo:'none' },
+            ]
+            var layout = { autosize: false, width: 300, height: 200, margin: { l: 10, r: 10, b: 10, t: 10, pad: 0 } }
+            Plotly.newPlot('contour-' + multiindex[0] + '-' + multiindex[1], data, layout, {displayModeBar: false});
+          }
           if (Math.abs(p.coeffs[k]) < 1e-11) {
             document.getElementById('contour-' + multiindex[0] + '-' + multiindex[1]).style.opacity = 0.25;
           }
@@ -409,8 +457,10 @@ function hide_modal() {
 
 
         // $('#running_indicator').html('');
-        $('#form').find('input[type="submit"]').attr('value', 'Run PCE');
+        $('#form').find('input[type="submit"]').attr('value', 'Compute PCE');
         $('#form').find('input[type="submit"]').removeAttr('disabled');
+
+        $('#results').show();
 
         MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
 
@@ -419,14 +469,11 @@ function hide_modal() {
 
       </script>
 
-
-
-
     </main>
 
     <footer class="footer">
       <div class="container">
-        <span class="text-muted">Github: <a href="https://github.com/chi-feng/pce-demo">https://github.com/chi-feng/pce-demo</a></span>
+        <span class="text-muted">Github <a href="https://github.com/chi-feng/pce-demo">https://github.com/chi-feng/pce-demo</a></span>
       </div>
     </footer>
   </body>
